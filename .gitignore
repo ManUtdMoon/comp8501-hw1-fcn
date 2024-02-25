@@ -1,0 +1,31 @@
+# Python specific
+*.pyc
+__pycache__/
+
+# Virtual environment
+venv/
+env/
+
+# IDE specific
+.idea/
+.vscode/
+
+# Compiled files
+*.pyc
+*.pyo
+*.pyd
+
+# Logs and databases
+*.log
+*.sqlite3
+
+# Test coverage
+htmlcov/
+
+# Package files
+*.egg-info/
+dist/
+build/
+
+# Ignore /data/ directory
+/data/
