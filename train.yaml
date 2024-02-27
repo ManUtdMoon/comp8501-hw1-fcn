@@ -1,0 +1,58 @@
+defaults:
+  - _self_
+
+model_name: &model_name fcn32s
+name: train_fcn_seg
+
+model:
+  
+
+train_dataloader:
+  batch_size: 16
+  num_workers: 4
+  shuffle: True
+
+val_dataloader:
+  batch_size: 32
+  num_workers: 4
+  shuffle: False
+
+training:
+  device: "cuda:0"
+  seed: 42
+  debug: True
+  resume: True
+  num_epochs: 101
+  # training loop control
+  # in epochs
+  checkpoint_every: 1
+  val_every: 1
+  # steps per epoch
+  max_train_steps: null
+  max_val_steps: null
+  # misc
+  tqdm_interval_sec: 1.0
+
+optimizer:
+  _target_: torch.optim.AdamW
+  lr: 1.0e-4
+  betas: [0.95, 0.999]
+  eps: 1.0e-8
+  weight_decay: 1.0e-6
+
+checkpoint:
+  topk:
+    monitor_key: log_val_loss
+    mode: min
+    k: 5
+    format_str: epoch={epoch:04d}-log_val_loss={log_val_loss:.3f}.ckpt
+  save_last_ckpt: true
+
+hydra:
+  job:
+    override_dirname: ${name}
+  run:
+    dir: data/outputs/${now:%Y.%m.%d}/${now:%H.%M.%S}_${name}_${task_name}
+  sweep:
+    dir: data/outputs/${now:%Y.%m.%d}/${now:%H.%M.%S}_${name}_${task_name}
+    subdir: ${hydra.job.num}

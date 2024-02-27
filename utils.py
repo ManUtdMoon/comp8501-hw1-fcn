@@ -1,4 +1,35 @@
+from typing import Dict, Callable
+import os
 import numpy as np
+import torch
+import csv
+from datetime import datetime
+from pathlib import Path
+from diffusers.optimization import (
+    Union, SchedulerType, Optional,
+    Optimizer, TYPE_TO_SCHEDULER_FUNCTION
+)
+
+
+def dict_apply(
+        x: Dict[str, torch.Tensor], 
+        func: Callable[[torch.Tensor], torch.Tensor]
+        ) -> Dict[str, torch.Tensor]:
+    result = dict()
+    for key, value in x.items():
+        if isinstance(value, dict):
+            result[key] = dict_apply(value, func)
+        else:
+            result[key] = func(value)
+    return result
+
+
+def optimizer_to(optimizer, device):
+    for state in optimizer.state.values():
+        for k, v in state.items():
+            if isinstance(v, torch.Tensor):
+                state[k] = v.to(device=device)
+    return optimizer
 
 
 def cat_list(images, fill_value=0):
@@ -15,6 +46,178 @@ def collate_fn(batch):
     batched_imgs = cat_list(images, fill_value=0)
     batched_targets = cat_list(targets, fill_value=255)
     return batched_imgs, batched_targets
+
+
+def get_scheduler(
+    name: Union[str, SchedulerType],
+    optimizer: Optimizer,
+    num_warmup_steps: Optional[int] = None,
+    num_training_steps: Optional[int] = None,
+    **kwargs
+):
+    """
+    Added kwargs vs diffuser's original implementation
+
+    Unified API to get any scheduler from its name.
+
+    Args:
+        name (`str` or `SchedulerType`):
+            The name of the scheduler to use.
+        optimizer (`torch.optim.Optimizer`):
+            The optimizer that will be used during training.
+        num_warmup_steps (`int`, *optional*):
+            The number of warmup steps to do. This is not required by all schedulers (hence the argument being
+            optional), the function will raise an error if it's unset and the scheduler type requires it.
+        num_training_steps (`int``, *optional*):
+            The number of training steps to do. This is not required by all schedulers (hence the argument being
+            optional), the function will raise an error if it's unset and the scheduler type requires it.
+    """
+    name = SchedulerType(name)
+    schedule_func = TYPE_TO_SCHEDULER_FUNCTION[name]
+    if name == SchedulerType.CONSTANT:
+        return schedule_func(optimizer, **kwargs)
+
+    # All other schedulers require `num_warmup_steps`
+    if num_warmup_steps is None:
+        raise ValueError(f"{name} requires `num_warmup_steps`, please provide that argument.")
+
+    if name == SchedulerType.CONSTANT_WITH_WARMUP:
+        return schedule_func(optimizer, num_warmup_steps=num_warmup_steps, **kwargs)
+
+    # All other schedulers require `num_training_steps`
+    if num_training_steps is None:
+        raise ValueError(f"{name} requires `num_training_steps`, please provide that argument.")
+
+    return schedule_func(optimizer, num_warmup_steps=num_warmup_steps, num_training_steps=num_training_steps, **kwargs)
+
+
+class Log:
+    def __init__(self):
+        self._dir = None
+        self._log_file = None
+
+    def setup(self, dir, log_filename='log.txt', if_exists='append'):
+        # assert self._dir is None, 'Can only setup once'
+        self._dir = Path(dir)
+        self._dir.mkdir(exist_ok=True)
+        print(f'Set log dir to {dir}, log filename to {log_filename}')
+        log_path = self._dir / log_filename
+        if log_path.exists():
+            if if_exists == 'append':
+                print(f'Log file named {log_filename} already exists; will use append mode')
+                self._log_file = log_path.open('a', buffering=1)
+            elif if_exists == 'overwrite':
+                print(f'Log file named {log_filename} already exists; will overwrite it')
+                self._log_file = log_path.open('w', buffering=1)
+            elif if_exists == 'exit':
+                print(f'Log file named {log_filename} already exists; exiting')
+                exit()
+            else:
+                raise NotImplementedError(f'Unknown if_exists option: {if_exists}')
+        else:
+            print(f'Creating new log file named {log_filename}')
+            self._log_file = log_path.open('w', buffering=1)
+
+    @property
+    def dir(self):
+        return self._dir
+
+    def message(self, message, timestamp=True, flush=False):
+        if timestamp:
+            now_str = datetime.now().strftime('%H:%M:%S')
+            message = f'[{now_str}] ' + message
+        else:
+            message = ' ' * 11 + message
+        print(message)
+        self._log_file.write(f'{message}\n')
+        if flush:
+            self._log_file.flush()
+
+    def __call__(self, *args, **kwargs):
+        return self.message(*args, **kwargs)
+
+default_log = Log()
+
+
+class TabularLog:
+    def __init__(self, dir, filename):
+        self._dir = Path(dir)
+        assert self._dir.is_dir()
+        self._filename = filename
+        self._column_names = None
+        self._file = open(self.path, mode=('a' if self.path.exists() else 'w'), newline='')
+        self._writer = csv.writer(self._file)
+
+    @property
+    def path(self):
+        return self._dir/self._filename
+
+    def row(self, row, flush=True):
+        if self._column_names is None:
+            self._column_names = list(row.keys())
+            self._writer.writerow(self._column_names)
+        self._writer.writerow([row[col] for col in self._column_names])
+        if flush:
+            self._file.flush()
+
+
+class TopKCheckpointManager:
+    def __init__(self,
+            save_dir,
+            monitor_key: str,
+            mode='min',
+            k=1,
+            format_str='epoch={epoch:03d}-train_loss={train_loss:.3f}.ckpt'
+        ):
+        assert mode in ['max', 'min']
+        assert k >= 0
+
+        self.save_dir = save_dir
+        self.monitor_key = monitor_key
+        self.mode = mode
+        self.k = k
+        self.format_str = format_str
+        self.path_value_map = dict()
+    
+    def get_ckpt_path(self, data: Dict[str, float]) -> Optional[str]:
+        if self.k == 0:
+            return None
+
+        value = data[self.monitor_key]
+        ckpt_path = os.path.join(
+            self.save_dir, self.format_str.format(**data))
+        
+        if len(self.path_value_map) < self.k:
+            # under-capacity
+            self.path_value_map[ckpt_path] = value
+            return ckpt_path
+        
+        # at capacity
+        sorted_map = sorted(self.path_value_map.items(), key=lambda x: x[1])
+        min_path, min_value = sorted_map[0]
+        max_path, max_value = sorted_map[-1]
+
+        delete_path = None
+        if self.mode == 'max':
+            if value > min_value:
+                delete_path = min_path
+        else:
+            if value < max_value:
+                delete_path = max_path
+
+        if delete_path is None:
+            return None
+        else:
+            del self.path_value_map[delete_path]
+            self.path_value_map[ckpt_path] = value
+
+            if not os.path.exists(self.save_dir):
+                os.mkdir(self.save_dir)
+
+            if os.path.exists(delete_path):
+                os.remove(delete_path)
+            return ckpt_path
+
 
 
 PALETTE = {
@@ -276,6 +479,7 @@ PALETTE = {
 }
 
 CLASSES = {
+    "background": 0,
     "aeroplane": 1,
     "bicycle": 2,
     "bird": 3,
@@ -295,5 +499,6 @@ CLASSES = {
     "sheep": 17,
     "sofa": 18,
     "train": 19,
-    "tvmonitor": 20
+    "tvmonitor": 20,
+    "tv/monitor": 20,
 }
