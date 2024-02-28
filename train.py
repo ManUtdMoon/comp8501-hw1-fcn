@@ -11,8 +11,8 @@ from hydra.core.hydra_config import HydraConfig
 from omegaconf import OmegaConf
 
 from utils import (
-    TabularLog, collate_fn, get_scheduler,
-    optimizer_to, TopKCheckpointManager
+    TabularLog, collate_fn,
+    optimizer_to, TopKCheckpointManager, PROJ_DIR
 )
 from models import FCNBase
 from dataset import get_dataset
@@ -33,7 +33,7 @@ class TrainWorkspace:
         random.seed(seed)
 
         # config model
-        self.model: FCNBase = hydra.utils.instantiate(cfg.model)
+        self.model: FCNBase = hydra.utils.instantiate(cfg.model.arch)
 
         # config optimizer
         self.optimizer = hydra.utils.instantiate(
@@ -203,7 +203,7 @@ class TrainWorkspace:
 
                 # sanitize metric names
                 metric_dict = dict()
-                for key, value in step_log.items():
+                for key, value in epoch_log.items():
                     new_key = key.replace("/", "_")
                     metric_dict[new_key] = value
                 # We can't copy the last checkpoint here
@@ -220,7 +220,8 @@ class TrainWorkspace:
 
 
 @hydra.main(
-    config_path=str(pathlib.Path(__file__).parent),
+    version_base=None,
+    config_path=str(pathlib.Path(__file__).parent / "config"),
     config_name=pathlib.Path(__file__).stem)
 def main(cfg):
     workspace = TrainWorkspace(cfg)

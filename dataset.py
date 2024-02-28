@@ -147,9 +147,13 @@ def get_dataset(is_train, is_eval):
     assert not (is_train and is_eval), \
         "is_train and is_eval cannot be True at the same time"
     from torchvision.datasets import VOCSegmentation
+    from utils import PROJ_DIR
+
+    data_dir = PROJ_DIR + "/data"
+
     if is_train:
         return VOCSegmentation(
-            root="./data",
+            root=data_dir,
             year="2012",
             image_set="train",
             download=False,
@@ -157,7 +161,7 @@ def get_dataset(is_train, is_eval):
         )
     elif is_eval:
         return VOCSegmentation(
-            root="./data",
+            root=data_dir,
             year="2012",
             image_set="val",
             download=False,
@@ -165,7 +169,7 @@ def get_dataset(is_train, is_eval):
         )
     else:
         return VOCSegmentation(
-            root="./data",
+            root=data_dir,
             year="2012",
             image_set="val",
             download=False,

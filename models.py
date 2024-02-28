@@ -1,6 +1,9 @@
 import numpy as np
+import logging
 import torch
 import torch.nn as nn
+
+logger = logging.getLogger(__name__)
 
 
 def get_upsampling_weight(in_channels, out_channels, kernel_size):
@@ -71,6 +74,11 @@ class FCN32s(FCNBase):
         )
         self._initialize_weights()
 
+        logger.info(
+            "number of parameters: %.2f M", 
+            sum(p.numel() for p in self.parameters()) / 1e6
+        )
+
     def forward(self, x):
         """
         note: return is the 32x of last feature map, not the original size
@@ -96,9 +104,11 @@ class FCN32s(FCNBase):
         h = self.score_fr(h) # num_classes, (h+6)/32, (w+6)/32
         h = self.upscore(h) # num_classes, h+38, w+38
 
-        h = h[:, :, 19:19+height, 19:19+width].contiguous()
+        h = nn.functional.interpolate(
+            h, size=(height, width), mode='bilinear', align_corners=True
+        )
 
-        return x
+        return h
     
     def compute_loss(self, image, mask, criterion):
         pred = self(image)
