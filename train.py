@@ -156,6 +156,8 @@ class TrainWorkspace:
                         "train_loss": loss_cpu,
                         "lr": lr_scheduler.get_last_lr()[0]
                     }
+                    for key, value in step_log.items():
+                        step_log[key] = np.round(value, 6) if isinstance(value, float) else value
                     step_logger.row(step_log)
                     self.global_step += 1
 
@@ -202,6 +204,9 @@ class TrainWorkspace:
                     epoch_log["val_loss"] = val_loss
                     epoch_log["log_val_loss"] = np.log(val_loss)
                     epoch_log.update(val_metrics)
+
+                    for key, value in epoch_log.items():
+                        epoch_log[key] = np.round(value, 6) if isinstance(value, float) else value
                     epoch_logger.row(epoch_log)
 
             # checkpoint
