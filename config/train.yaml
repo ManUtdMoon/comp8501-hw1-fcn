@@ -10,39 +10,40 @@ train_dataloader:
   shuffle: True
 
 val_dataloader:
-  batch_size: 32
+  batch_size: 1
   num_workers: 4
   shuffle: False
 
 training:
   device: "cuda:0"
   seed: 42
-  debug: True
+  debug: False
   resume: True
-  num_epochs: 101
+  num_epochs: 21
   # training loop control
   # in epochs
-  checkpoint_every: 1
+  checkpoint_every: 5
   val_every: 1
   # steps per epoch
   max_train_steps: null
   max_val_steps: null
   # misc
   tqdm_interval_sec: 1.0
+  lr_min: 0.0
 
 optimizer:
   _target_: torch.optim.AdamW
-  lr: 1.0e-4
+  lr: 1.0e-3
   betas: [0.95, 0.999]
   eps: 1.0e-8
   weight_decay: 1.0e-6
 
 checkpoint:
   topk:
-    monitor_key: log_val_loss
+    monitor_key: mean_acc
     mode: min
     k: 5
-    format_str: epoch={epoch:04d}-log_val_loss={log_val_loss:.3f}.ckpt
+    format_str: epoch={epoch:04d}-mean_acc={mean_acc:.3f}.ckpt
   save_last_ckpt: true
 
 hydra:

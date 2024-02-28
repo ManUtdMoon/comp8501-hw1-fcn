@@ -49,14 +49,8 @@ class FCNBase(nn.Module):
     def _initialize_weights(self):
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
-                m.weight.data.zero_()
-                if m.bias is not None:
-                    m.bias.data.zero_()
-            if isinstance(m, nn.ConvTranspose2d):
-                assert m.kernel_size[0] == m.kernel_size[1]
-                initial_weight = get_upsampling_weight(
-                    m.in_channels, m.out_channels, m.kernel_size[0])
-                m.weight.data.copy_(initial_weight)
+                torch.nn.init.kaiming_normal_(m.weight.data, nonlinearity = 'relu')
+                torch.nn.init.constant_(m.bias.data, 0)
 
     def forward(self, x):
         raise NotImplementedError

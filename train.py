@@ -12,7 +12,7 @@ from omegaconf import OmegaConf
 
 from utils import (
     TabularLog, collate_fn,
-    optimizer_to, TopKCheckpointManager, PROJ_DIR
+    optimizer_to, TopKCheckpointManager, eval_score
 )
 from models import FCNBase
 from dataset import get_dataset
@@ -98,7 +98,7 @@ class TrainWorkspace:
         lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
             self.optimizer,
             T_max=cfg.training.num_epochs * len(train_dataloader),
-            eta_min=0
+            eta_min=cfg.training.lr_min
         )
 
         # config checkpoint
@@ -170,6 +170,8 @@ class TrainWorkspace:
                 with torch.inference_mode():
                     epoch_log = dict()
                     val_losses = list()
+                    pred_list = list()
+                    label_list = list()
                     with tqdm.tqdm(val_dataloader,
                         desc=f"Val epoch {self.epoch}",
                         leave=False,
@@ -179,20 +181,27 @@ class TrainWorkspace:
                             # device transfer
                             image, mask = batch
                             image, mask = image.to(device), mask.to(device)
+                            pred = self.model(image)
                             
-                            loss = self.model.compute_loss(image, mask, criterion)
+                            loss = criterion(pred, mask)
                             val_losses.append(loss)
-                            # TODO: more metrics
+                            
+                            pred_list.append(pred.argmax(1).cpu().numpy())
+                            label_list.append(mask.cpu().numpy())
 
                             if (cfg.training.max_val_steps is not None) \
                                 and batch_idx >= (cfg.training.max_val_steps-1):
                                 break
                     if len(val_losses) > 0:
                         val_loss = torch.mean(torch.tensor(val_losses)).item()
-
+                    
+                    val_metrics = eval_score(
+                        pred_list, label_list, cfg.model.arch.num_classes
+                    )
+                    epoch_log["epoch"] = self.epoch
                     epoch_log["val_loss"] = val_loss
                     epoch_log["log_val_loss"] = np.log(val_loss)
-                    epoch_log["epoch"] = self.epoch
+                    epoch_log.update(val_metrics)
                     epoch_logger.row(epoch_log)
 
             # checkpoint

@@ -106,17 +106,14 @@ class Normalize:
 def get_transform(is_train, is_eval):
     mean = [0.485, 0.456, 0.406]
     std = [0.229, 0.224, 0.225]
-    base_size = 520
-    min_size = int(0.5*base_size)
-    max_size = int(2.0*base_size)
-    crop_size = 480
+    base_size = 256
+
     assert not (is_train and is_eval), "is_train and is_eval cannot be True at the same time"
 
     if is_train:
         return Compose([
-            RandomResize(min_size=min_size, max_size=max_size),
-            RandomHorizontalFlip(),
-            RandomCrop(crop_size),
+            RandomResize(base_size),
+            RandomHorizontalFlip(0.3),
             PILToTensor(),
             ToDtype(torch.float32, scale=True),
             Normalize(mean=mean, std=std),

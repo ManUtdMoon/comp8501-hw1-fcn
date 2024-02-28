@@ -1,4 +1,4 @@
-from typing import Dict, Callable
+from typing import Dict, Callable, Optional
 import os
 import numpy as np
 import torch
@@ -6,14 +6,59 @@ import csv
 from datetime import datetime
 import pathlib
 from pathlib import Path
-from diffusers.optimization import (
-    Union, SchedulerType, Optional,
-    Optimizer, TYPE_TO_SCHEDULER_FUNCTION
-)
 
 
 PROJ_DIR = str(pathlib.Path(__file__).parent.expanduser())
 
+
+
+def _fast_hist(pred, label, n_class):
+    mask = np.logical_and(label >= 0, label < n_class)
+    hist = np.bincount(
+        n_class * label[mask].astype(int) + pred[mask],
+        minlength=n_class ** 2
+    ).reshape(n_class, n_class)
+    return hist
+
+def eval_score(pred, label, n_class):
+    """Returns accuracy score evaluation result.
+
+    @params
+        pred: (B,H,W) ndarray, predicted label
+        label: (B,H,W) ndarray, ground truth label
+        n_class: int, number of classes
+    @return
+        result: dict
+            overall accuracy
+            mean accuracy
+            mean IU
+            fwavacc
+    """
+    hist = np.zeros((n_class, n_class))
+    for p, l in zip(pred, label):
+        # p, l.shape = (H,W)
+        hist += _fast_hist(p.flatten(), l.flatten(), n_class)
+    acc = np.diag(hist).sum() / hist.sum()
+
+    with np.errstate(divide='ignore', invalid='ignore'):
+        acc_cls = np.diag(hist) / hist.sum(axis=1)
+    acc_cls = np.nanmean(acc_cls)
+
+    with np.errstate(divide='ignore', invalid='ignore'):
+        iu = np.diag(hist) / (
+            hist.sum(axis=1) + hist.sum(axis=0) - np.diag(hist)
+        )
+    mean_iu = np.nanmean(iu)
+
+    freq = hist.sum(axis=1) / hist.sum()
+    fwavacc = (freq[freq > 0] * iu[freq > 0]).sum()
+
+    return {
+        "overall_acc": acc,
+        "mean_acc": acc_cls,
+        "freqw_acc": fwavacc,
+        "mean_iu": mean_iu,
+    }
 
 def dict_apply(
         x: Dict[str, torch.Tensor], 
