@@ -95,10 +95,10 @@ class TrainWorkspace:
         )
 
         # config lr scheduler
-        lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+        lr_scheduler = torch.optim.lr_scheduler.PolynomialLR(
             self.optimizer,
-            T_max=cfg.training.num_epochs * len(train_dataloader),
-            eta_min=cfg.training.lr_min
+            total_iters=cfg.training.num_epochs * len(train_dataloader),
+            power=0.9
         )
 
         # config checkpoint

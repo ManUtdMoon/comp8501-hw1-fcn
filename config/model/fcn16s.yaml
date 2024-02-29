@@ -1,5 +1,0 @@
-name: fcn16s
-
-arch:
-  _target_: models.FCN16s
-  num_classes: 21

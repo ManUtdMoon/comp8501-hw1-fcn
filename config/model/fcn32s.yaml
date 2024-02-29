@@ -1,5 +1,0 @@
-name: fcn32s
-
-arch:
-  _target_: models.FCN32s
-  num_classes: 21

@@ -11,95 +11,6 @@ from model_utils import BasicBlock, FCNHead
 logger = logging.getLogger(__name__)
 
 
-class FCNBase(nn.Module):
-    # init the fully convolutional network with a VGG16 backbone
-    # do not use the torchvision
-    def __init__(self):
-        super(FCNBase, self).__init__()
-        self.conv1_1 = nn.Conv2d(3, 64, kernel_size=3, padding=100)
-        self.relu1_1 = nn.ReLU(inplace=True)
-        self.conv1_2 = nn.Conv2d(64, 64, kernel_size=3, padding=1)
-        self.relu1_2 = nn.ReLU(inplace=True)
-        self.pool1 = nn.MaxPool2d(kernel_size=2, stride=2, ceil_mode=True)
-        
-        self.conv2 = two_conv_block(64, 128)
-        self.conv3 = three_conv_block(128, 256)
-        self.conv4 = three_conv_block(256, 512)
-        self.conv5 = three_conv_block(512, 512)
-
-        self.fc6 = nn.Conv2d(512, 4096, kernel_size=7)
-        self.relu6 = nn.ReLU(inplace=True)
-        self.drop6 = nn.Dropout2d()
-
-        self.fc7 = nn.Conv2d(4096, 4096, kernel_size=1)
-        self.relu7 = nn.ReLU(inplace=True)
-        self.drop7 = nn.Dropout2d()
-
-    def _initialize_weights(self):
-        for m in self.modules():
-            if isinstance(m, nn.Conv2d):
-                torch.nn.init.kaiming_normal_(m.weight.data, nonlinearity = 'relu')
-                torch.nn.init.constant_(m.bias.data, 0)
-
-    def forward(self, x):
-        raise NotImplementedError
-
-    def compute_loss(self, image, mask, criterion):
-        raise NotImplementedError
-
-
-class FCN32s(FCNBase):
-    def __init__(self, num_classes=21):
-        super(FCN32s, self).__init__()
-        self.score_fr = nn.Conv2d(4096, num_classes, kernel_size=1)
-        self.upscore = nn.ConvTranspose2d(
-            num_classes, num_classes, kernel_size=64, stride=32, bias=False
-        )
-        self._initialize_weights()
-
-        logger.info(
-            "number of parameters: %.2f M", 
-            sum(p.numel() for p in self.parameters()) / 1e6
-        )
-
-    def forward(self, x):
-        """
-        note: return is the 32x of last feature map, not the original size
-        """
-        input_shape = x.shape[-2:]
-
-        h = x
-        h = self.relu1_1(self.conv1_1(h))
-        h = self.relu1_2(self.conv1_2(h))
-        h = self.pool1(h) # 64, h/2+99, w/2+99
-
-        h = self.conv2(h) # 128, (h+2)/4+49, (w+2)/4+49
-        h = self.conv3(h) # 256, (h+6)/8+24, (w+6)/4+24
-        h = self.conv4(h) # 512, (h+6)/16+12, (w+6)/16+12
-        h = self.conv5(h) # 512, (h+6)/32+6, (w+6)/32+6
-        
-        h = self.relu6(self.fc6(h))
-        h = self.drop6(h) # 4096, (h+6)/32, (w+6)/32
-        h = self.relu7(self.fc7(h))
-        h = self.drop7(h) # 4096, (h+6)/32, (w+6)/32
-
-        h = self.score_fr(h) # num_classes, (h+6)/32, (w+6)/32
-        h = self.upscore(h) # num_classes, h+38, w+38
-
-        h = nn.functional.interpolate(
-            h, size=input_shape, mode='bilinear', align_corners=False
-        )
-
-        return h
-    
-    def compute_loss(self, image, mask, criterion):
-        pred = self(image)
-
-        # compute loss
-        loss = criterion(pred, mask)
-        return loss
-
-
 class ResNet18(nn.Module):
     def __init__(self):
         super(ResNet18, self).__init__()
@@ -205,22 +116,32 @@ class ResNet18PretrainedFCN32s(nn.Module):
         return loss
 
 
-def two_conv_block(in_channels, out_channels):
-    return nn.Sequential(
-        nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1),
-        nn.ReLU(inplace=True),
-        nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1),
-        nn.ReLU(inplace=True),
-        nn.MaxPool2d(kernel_size=2, stride=2, ceil_mode=True)
-    )
+class ResNet50PretrainedFCN32s(nn.Module):
+    def __init__(self, num_classes=21):
+        super(ResNet50PretrainedFCN32s, self).__init__()
+        model = torchvision.models.resnet50(weights="IMAGENET1K_V1")
+        self.backbone = IntermediateLayerGetter(
+            model, return_layers={"layer4": "layer4"}
+        )
+        self.classifier = FCNHead(2048, num_classes)
+        logger.info(
+            "number of parameters: %.2f M", 
+            sum(p.numel() for p in self.parameters()) / 1e6
+        )
 
-def three_conv_block(in_channels, out_channels):
-    return nn.Sequential(
-        nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1),
-        nn.ReLU(inplace=True),
-        nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1),
-        nn.ReLU(inplace=True),
-        nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1),
-        nn.ReLU(inplace=True),
-        nn.MaxPool2d(kernel_size=2, stride=2, ceil_mode=True)
-    )
+    def forward(self, x):
+        input_shape = x.shape[-2:]
+        features = self.backbone(x)
+        x = features["layer4"]
+        x = self.classifier(x)  # num_classes, h/32, w/32
+        x = F.interpolate(
+            x, size=input_shape, mode='bilinear', align_corners=False
+        )
+        return x
+
+    def compute_loss(self, image, mask, criterion):
+        pred = self(image)
+
+        # compute loss
+        loss = criterion(pred, mask)
+        return loss

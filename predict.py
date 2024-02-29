@@ -17,7 +17,7 @@ from utils import PALETTE, collate_fn
 
 @click.command()
 @click.option("-c", "--checkpoint", required=True)
-@click.option("-d", "--device", default="cuda:0")
+@click.option("-d", "--device", default="cuda:1")
 def main(checkpoint, device):
     # create output_dir
     train_dir = pathlib.Path(checkpoint).expanduser().parent.parent
@@ -38,8 +38,7 @@ def main(checkpoint, device):
     # get dataset
     is_train = False
     is_val = False
-    is_test = (not is_train) and (not is_val)
-    bz = 20
+    bz = 1
     dataset = get_dataset(is_train=is_train, is_eval=is_val)
     dataloader = torch.utils.data.DataLoader(
         dataset, batch_size=bz, shuffle=False, num_workers=4,
@@ -70,7 +69,7 @@ def main(checkpoint, device):
                 pred_list.append(pred.argmax(1).cpu().numpy())
                 label_list.append(mask.cpu().numpy())
 
-                if batch_idx == 1:
+                if batch_idx == 40:
                     break
 
     # save image, pred, label into one image to output_dir

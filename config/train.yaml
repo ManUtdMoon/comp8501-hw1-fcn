@@ -5,7 +5,7 @@ defaults:
 name: train_fcn_seg
 
 train_dataloader:
-  batch_size: 20
+  batch_size: 32
   num_workers: 4
   shuffle: True
 
@@ -22,26 +22,24 @@ training:
   num_epochs: 31
   # training loop control
   # in epochs
-  checkpoint_every: 5
+  checkpoint_every: 1
   val_every: 1
   # steps per epoch
   max_train_steps: null
   max_val_steps: null
   # misc
   tqdm_interval_sec: 1.0
-  lr_min: 1.0e-3
 
 optimizer:
-  _target_: torch.optim.AdamW
-  lr: 1.0e-3
-  betas: [0.95, 0.999]
-  eps: 1.0e-8
-  weight_decay: 1.0e-6
+  _target_: torch.optim.SGD
+  lr: 1.0e-2
+  momentum: 0.9
+  weight_decay: 0.0001
 
 checkpoint:
   topk:
     monitor_key: acc
-    mode: min
+    mode: max
     k: 5
     format_str: epoch={epoch:04d}-acc={acc:.4f}.ckpt
   save_last_ckpt: true
