@@ -5,7 +5,7 @@ defaults:
 name: train_fcn_seg
 
 train_dataloader:
-  batch_size: 32
+  batch_size: 20
   num_workers: 4
   shuffle: True
 

@@ -14,7 +14,6 @@ from utils import (
     TabularLog, collate_fn,
     optimizer_to, TopKCheckpointManager, eval_score
 )
-from models import FCNBase
 from dataset import get_dataset
 
 
@@ -33,7 +32,7 @@ class TrainWorkspace:
         random.seed(seed)
 
         # config model
-        self.model: FCNBase = hydra.utils.instantiate(cfg.model.arch)
+        self.model = hydra.utils.instantiate(cfg.model.arch)
 
         # config optimizer
         self.optimizer = hydra.utils.instantiate(

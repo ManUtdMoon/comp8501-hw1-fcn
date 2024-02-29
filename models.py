@@ -119,7 +119,7 @@ class ResNet18PretrainedFCN32s(nn.Module):
 class ResNet50PretrainedFCN32s(nn.Module):
     def __init__(self, num_classes=21):
         super(ResNet50PretrainedFCN32s, self).__init__()
-        model = torchvision.models.resnet50(weights="IMAGENET1K_V1")
+        model = torchvision.models.resnet50(weights="IMAGENET1K_V2")
         self.backbone = IntermediateLayerGetter(
             model, return_layers={"layer4": "layer4"}
         )

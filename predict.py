@@ -36,7 +36,7 @@ def main(checkpoint, device):
     model.eval()
 
     # get dataset
-    is_train = False
+    is_train = True
     is_val = False
     bz = 1
     dataset = get_dataset(is_train=is_train, is_eval=is_val)
