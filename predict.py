@@ -39,7 +39,7 @@ def main(checkpoint, device):
     is_train = False
     is_val = False
     is_test = (not is_train) and (not is_val)
-    bz = 1 if is_test else 16
+    bz = 20
     dataset = get_dataset(is_train=is_train, is_eval=is_val)
     dataloader = torch.utils.data.DataLoader(
         dataset, batch_size=bz, shuffle=False, num_workers=4,

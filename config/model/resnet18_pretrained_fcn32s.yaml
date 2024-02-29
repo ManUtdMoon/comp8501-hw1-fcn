@@ -1,0 +1,5 @@
+name: resnet18_pretrained_fcn32s
+
+arch:
+  _target_: models.ResNet18PretrainedFCN32s
+  num_classes: 21

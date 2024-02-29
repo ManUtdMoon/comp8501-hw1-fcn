@@ -1,11 +1,11 @@
 defaults:
   - _self_
-  - model: fcn32s
+  - model: resnet18_pretrained_fcn32s
 
 name: train_fcn_seg
 
 train_dataloader:
-  batch_size: 16
+  batch_size: 20
   num_workers: 4
   shuffle: True
 
@@ -19,17 +19,17 @@ training:
   seed: 42
   debug: False
   resume: True
-  num_epochs: 21
+  num_epochs: 31
   # training loop control
   # in epochs
   checkpoint_every: 5
-  val_every: 2
+  val_every: 1
   # steps per epoch
   max_train_steps: null
   max_val_steps: null
   # misc
   tqdm_interval_sec: 1.0
-  lr_min: 0.0
+  lr_min: 1.0e-3
 
 optimizer:
   _target_: torch.optim.AdamW
