@@ -24,7 +24,10 @@ def main(output_dir, device):
     pathlib.Path(output_dir).mkdir(parents=True, exist_ok=True)
 
     # load model
-    model = torch.hub.load('pytorch/vision:v0.10.0', 'fcn_resnet50', pretrained=True)
+    model = torch.hub.load(
+        'pytorch/vision:v0.10.0', 'fcn_resnet50', 
+        weights="FCN_ResNet50_Weights.COCO_WITH_VOC_LABELS_V1"
+    )
     device = torch.device(device)
     model = model.to(device)
     model.eval()
