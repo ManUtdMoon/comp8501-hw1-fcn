@@ -23,7 +23,7 @@ training:
   # training loop control
   # in epochs
   checkpoint_every: 5
-  val_every: 1
+  val_every: 2
   # steps per epoch
   max_train_steps: null
   max_val_steps: null
@@ -40,10 +40,10 @@ optimizer:
 
 checkpoint:
   topk:
-    monitor_key: mean_acc
+    monitor_key: acc
     mode: min
     k: 5
-    format_str: epoch={epoch:04d}-mean_acc={mean_acc:.3f}.ckpt
+    format_str: epoch={epoch:04d}-acc={acc:.4f}.ckpt
   save_last_ckpt: true
 
 hydra:
