@@ -1,6 +1,6 @@
 defaults:
   - _self_
-  - model: resnet18_pretrained_fcn32s
+  - model: resnet50_pretrained_fcn32s
 
 name: train_fcn_seg
 
