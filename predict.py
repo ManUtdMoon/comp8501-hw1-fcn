@@ -99,8 +99,11 @@ def main(checkpoint, device):
             axarr[2].set_title("Label")
             axarr[2].imshow(this_label)
 
+            for ax in axarr:
+                ax.axis("off")
+
             f.tight_layout()
-            f.savefig(output_dir / f"{i*bz+j}.png", dpi=150)
+            f.savefig(output_dir / f"{i*bz+j}.png", dpi=200)
 
             # close the figure
             plt.close(f)
