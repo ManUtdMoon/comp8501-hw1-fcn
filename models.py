@@ -145,3 +145,40 @@ class ResNet50PretrainedFCN32s(nn.Module):
         # compute loss
         loss = criterion(pred, mask)
         return loss
+
+
+class ResNet50PretrainedFCN16s(nn.Module):
+    def __init__(self, num_classes=21):
+        super(ResNet50PretrainedFCN16s, self).__init__()
+        model = torchvision.models.resnet50(weights="IMAGENET1K_V2")
+        self.backbone = IntermediateLayerGetter(
+            model, return_layers={"layer3": "layer3", "layer4": "layer4"}
+        )
+        self.layer4_classifier = FCNHead(2048, num_classes)
+        self.layer3_classifier = FCNHead(1024, num_classes)
+        logger.info(
+            "number of parameters: %.2f M", 
+            sum(p.numel() for p in self.parameters()) / 1e6
+        )
+
+    def forward(self, x):
+        input_shape = x.shape[-2:]
+        features = self.backbone(x)
+        x = features["layer4"]
+        x = self.layer4_classifier(x)  # nc, h/32, w/32
+        x = F.interpolate(
+            x, size=features["layer3"].shape[-2:], mode='bilinear', align_corners=False
+        )  # nc, h/16, w/16
+        x = x + self.layer3_classifier(features["layer3"])  # nc, h/16, w/16
+        x = F.interpolate(
+            x, size=input_shape, mode='bilinear', align_corners=False
+        )  # nc, h, w
+
+        return x
+
+    def compute_loss(self, image, mask, criterion):
+        pred = self(image)
+
+        # compute loss
+        loss = criterion(pred, mask)
+        return loss

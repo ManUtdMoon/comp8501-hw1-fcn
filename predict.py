@@ -19,12 +19,21 @@ from utils import PALETTE, collate_fn
 @click.option("-c", "--checkpoint", required=True)
 @click.option("-d", "--device", default="cuda:1")
 def main(checkpoint, device):
+    # get dataset
+    is_train = False
+    is_val = False
+    bz = 1
+    dataset = get_dataset(is_train=is_train, is_eval=is_val)
+    dataloader = torch.utils.data.DataLoader(
+        dataset, batch_size=bz, shuffle=False, num_workers=4,
+        collate_fn=collate_fn
+    )
+    
     # create output_dir
     train_dir = pathlib.Path(checkpoint).expanduser().parent.parent
     ckpt_prefix = pathlib.Path(checkpoint).stem
-    output_dir = train_dir / "predict" / ckpt_prefix
-    # if os.path.exists(output_dir):
-    #     click.confirm(f"Output path {output_dir} already exists! Overwrite?", abort=True)
+    img_dir = "train" if is_train else "val"
+    output_dir = train_dir / "predict" / ckpt_prefix / img_dir
     pathlib.Path(output_dir).mkdir(parents=True, exist_ok=True)
 
     # load model
@@ -35,15 +44,6 @@ def main(checkpoint, device):
     model.to(device)
     model.eval()
 
-    # get dataset
-    is_train = True
-    is_val = False
-    bz = 1
-    dataset = get_dataset(is_train=is_train, is_eval=is_val)
-    dataloader = torch.utils.data.DataLoader(
-        dataset, batch_size=bz, shuffle=False, num_workers=4,
-        collate_fn=collate_fn
-    )
     criterion = torch.nn.CrossEntropyLoss(ignore_index=255)
 
     # predict
